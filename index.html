@@ -1,59 +1,510 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Jatin Chaudhary — Greeting</title>
-  <style>
-    html,body {
-      height: 100%;
-      margin: 0;
-      font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
-      background: linear-gradient(135deg,#0f172a 0%, #0b1220 100%);
-      color: #f8fafc;
-      -webkit-font-smoothing:antialiased;
-      -moz-osx-font-smoothing:grayscale;
-    }
-    .wrap {
-      height: 100%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
-      padding: 24px;
-    }
-    .card {
-      max-width: 720px;
-      background: rgba(255,255,255,0.03);
-      border: 1px solid rgba(255,255,255,0.04);
-      padding: 36px;
-      border-radius: 12px;
-      box-shadow: 0 6px 30px rgba(2,6,23,0.6);
-    }
-    h1 {
-      margin: 0 0 8px 0;
-      font-size: 2.2rem;
-      letter-spacing: -0.02em;
-    }
-    p {
-      margin: 0;
-      opacity: 0.9;
-      font-size: 1.05rem;
-    }
-    .small {
-      margin-top: 14px;
-      font-size: 0.9rem;
-      opacity: 0.75;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cosmic Evolution Simulator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000; color: white; font-family: 'Courier New', Courier, monospace; }
+        #canvas-container { width: 100vw; height: 100vh; position: absolute; top: 0; left: 0; z-index: 1; }
+        .ui-layer { position: absolute; z-index: 10; pointer-events: none; width: 100%; height: 100%; }
+        .pointer-events-auto { pointer-events: auto; }
+        
+        /* Glassmorphism UI */
+        .glass-panel {
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .stat-value { color: #4ade80; text-shadow: 0 0 10px rgba(74, 222, 128, 0.5); }
+        .stat-danger { color: #f87171; text-shadow: 0 0 10px rgba(248, 113, 113, 0.5); }
+        .stat-cosmic { color: #60a5fa; text-shadow: 0 0 10px rgba(96, 165, 250, 0.5); }
+
+        /* Custom Scrollbar for logs */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: rgba(0,0,0,0.3); }
+        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 3px; }
+
+        .btn-nav {
+            transition: all 0.3s ease;
+            border-bottom: 2px solid transparent;
+        }
+        .btn-nav.active {
+            border-bottom-color: #60a5fa;
+            color: #fff;
+            text-shadow: 0 0 10px #60a5fa;
+        }
+        .btn-nav:hover { opacity: 1; background: rgba(255,255,255,0.1); }
+    </style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="card" role="main">
-      <h1>Greeting from Jatin Chaudhary</h1>
-      <p>Greatest of all time.</p>
-      <p class="small">Welcome — this page is served from index.html (GitHub Pages).</p>
+
+    <!-- 3D Canvas -->
+    <div id="canvas-container"></div>
+
+    <!-- UI Overlay -->
+    <div class="ui-layer flex flex-col justify-between p-6">
+        
+        <!-- Header & Stats -->
+        <div class="flex justify-between items-start">
+            <div class="glass-panel p-6 rounded-lg max-w-md pointer-events-auto">
+                <h1 class="text-2xl font-bold mb-2 tracking-wider text-blue-300">ASTRONOMICAL SIMULATOR</h1>
+                <p class="text-xs text-gray-400 mb-4">OBSERVATORY_TERMINAL_V9.2</p>
+                
+                <div class="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                        <p class="text-gray-400">Total Mass</p>
+                        <p class="text-xl font-mono stat-value" id="stat-mass">0 M☉</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-400">Expansion Rate</p>
+                        <p class="text-xl font-mono stat-danger" id="stat-speed">0 km/s</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-400">Galactic Diameter</p>
+                        <p class="text-xl font-mono stat-cosmic" id="stat-size">0 ly</p>
+                    </div>
+                    <div>
+                        <p class="text-gray-400">Cosmic Value</p>
+                        <p class="text-xl font-mono text-yellow-400" id="stat-value">$0 T</p>
+                    </div>
+                </div>
+
+                <div class="mt-4 pt-4 border-t border-gray-700">
+                    <label class="block text-xs text-gray-400 mb-1">TIME DILATION (SPEED)</label>
+                    <input type="range" min="0" max="5" step="0.1" value="1" id="speed-slider" class="w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer">
+                </div>
+            </div>
+
+            <!-- Mode Selector -->
+            <div class="glass-panel px-4 py-2 rounded-full flex space-x-2 pointer-events-auto">
+                <button onclick="switchMode('galaxy')" id="btn-galaxy" class="btn-nav active px-4 py-2 text-sm font-bold text-gray-300">GALACTIC CLUSTER</button>
+                <button onclick="switchMode('blackhole')" id="btn-blackhole" class="btn-nav px-4 py-2 text-sm font-bold text-gray-300">EVENT HORIZON</button>
+                <button onclick="switchMode('interior')" id="btn-interior" class="btn-nav px-4 py-2 text-sm font-bold text-gray-300">SINGULARITY INTERIOR</button>
+            </div>
+        </div>
+
+        <!-- Footer / Logs -->
+        <div class="flex justify-between items-end">
+            <div class="glass-panel p-4 rounded-lg w-80 h-48 overflow-hidden pointer-events-auto flex flex-col">
+                <h3 class="text-xs font-bold text-gray-500 mb-2 uppercase border-b border-gray-700 pb-1">System Logs</h3>
+                <div id="log-container" class="flex-1 overflow-y-auto font-mono text-xs space-y-1 text-gray-300">
+                    <p><span class="text-green-400">[INIT]</span> Systems online.</p>
+                    <p><span class="text-blue-400">[INFO]</span> Generating dark matter scaffolding...</p>
+                </div>
+            </div>
+
+            <div class="glass-panel p-4 rounded-lg pointer-events-auto text-right">
+                <p class="text-xs text-gray-400">CURRENT TARGET</p>
+                <h2 class="text-xl font-bold text-white" id="target-name">MILKY WAY CLUSTER</h2>
+                <p class="text-xs text-gray-500 mt-1">COORDS: <span id="coords">0, 0, 0</span></p>
+            </div>
+        </div>
     </div>
-  </div>
+
+    <script>
+        // --- CONFIGURATION ---
+        const CONFIG = {
+            starCount: 15000,
+            galaxyCount: 3,
+            blackHoleSize: 15,
+            accretionDiskRadius: 40,
+            growthRate: 1.0005, // Multiplier per frame
+            colors: [0x5465ff, 0x788bff, 0x9bb1ff, 0xbfd7ff, 0xe2f3ff],
+            modes: ['galaxy', 'blackhole', 'interior']
+        };
+
+        // --- STATE MANAGEMENT ---
+        let currentMode = 'galaxy';
+        let timeScale = 1;
+        let cosmicAge = 0;
+        let stats = {
+            mass: 1.5, // Solar masses (trillions)
+            speed: 220, // km/s
+            size: 100, // kLY
+            value: 450 // Trillion abstract units
+        };
+
+        // --- THREE.JS SETUP ---
+        const scene = new THREE.Scene();
+        scene.fog = new THREE.FogExp2(0x000000, 0.0005);
+        
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 5000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        // Groups for switching scenes
+        const galaxyGroup = new THREE.Group();
+        const blackHoleGroup = new THREE.Group();
+        const interiorGroup = new THREE.Group();
+        
+        scene.add(galaxyGroup);
+        scene.add(blackHoleGroup);
+        scene.add(interiorGroup);
+
+        // Hide secondary scenes initially
+        blackHoleGroup.visible = false;
+        interiorGroup.visible = false;
+
+        // --- LIGHTING ---
+        const ambientLight = new THREE.AmbientLight(0x111111);
+        scene.add(ambientLight);
+
+        // --- GALAXY GENERATION ---
+        const galaxies = [];
+
+        function createGalaxy(offsetX, offsetY, offsetZ, colorTheme) {
+            const geometry = new THREE.BufferGeometry();
+            const positions = [];
+            const colors = [];
+            const sizes = [];
+
+            const colorObj = new THREE.Color(colorTheme);
+
+            for (let i = 0; i < CONFIG.starCount; i++) {
+                // Spiral logic
+                const angle = Math.random() * Math.PI * 2;
+                const radius = Math.random() * 100;
+                const spiralOffset = radius * 0.5; // Tighter spiral
+                
+                // 3 arms
+                const armOffset = (i % 3) * (Math.PI * 2 / 3); 
+                
+                const x = Math.cos(angle * 5 + armOffset) * radius + (Math.random() - 0.5) * (radius * 0.4);
+                const y = (Math.random() - 0.5) * (radius * 0.2); // Flat disk
+                const z = Math.sin(angle * 5 + armOffset) * radius + (Math.random() - 0.5) * (radius * 0.4);
+
+                positions.push(x, y, z);
+
+                // Color based on distance from center (hot center, cool edges)
+                const mixRatio = radius / 100;
+                const starColor = new THREE.Color().lerpColors(new THREE.Color(0xffaa00), colorObj, mixRatio);
+                
+                colors.push(starColor.r, starColor.g, starColor.b);
+                sizes.push(Math.random() * 1.5);
+            }
+
+            geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+            geometry.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+            geometry.setAttribute('size', new THREE.Float32BufferAttribute(sizes, 1));
+
+            // Shader Material for glowing dots
+            const material = new THREE.PointsMaterial({
+                size: 0.5,
+                vertexColors: true,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+                transparent: true,
+                opacity: 0.8
+            });
+
+            const galaxy = new THREE.Points(geometry, material);
+            galaxy.position.set(offsetX, offsetY, offsetZ);
+            
+            // Random initial rotation
+            galaxy.rotation.x = Math.random() * Math.PI;
+            galaxy.rotation.y = Math.random() * Math.PI;
+
+            // Store data for animation
+            galaxy.userData = {
+                rotSpeed: (Math.random() * 0.001) + 0.0005,
+                expandRate: 0,
+                baseScale: 1
+            };
+
+            galaxyGroup.add(galaxy);
+            galaxies.push(galaxy);
+            log(`Galaxy detected at sector [${offsetX}, ${offsetZ}]`);
+        }
+
+        // Create a few galaxies
+        createGalaxy(0, 0, 0, 0x00ffff);
+        createGalaxy(150, 50, -100, 0xff00ff);
+        createGalaxy(-150, -80, 50, 0x00ff00);
+
+
+        // --- BLACK HOLE & EARTH SCENE ---
+        
+        // 1. Black Hole Sphere (Event Horizon)
+        const bhGeometry = new THREE.SphereGeometry(CONFIG.blackHoleSize, 64, 64);
+        const bhMaterial = new THREE.MeshBasicMaterial({ color: 0x000000 });
+        const blackHole = new THREE.Mesh(bhGeometry, bhMaterial);
+        blackHoleGroup.add(blackHole);
+
+        // 2. Accretion Disk (Particles)
+        const diskGeometry = new THREE.BufferGeometry();
+        const diskPos = [];
+        const diskCol = [];
+        
+        for(let i=0; i<8000; i++) {
+            const angle = Math.random() * Math.PI * 2;
+            // Ring distribution
+            const minR = CONFIG.blackHoleSize * 1.2;
+            const maxR = CONFIG.blackHoleSize * 4;
+            const r = minR + Math.random() * (maxR - minR);
+            
+            const x = Math.cos(angle) * r;
+            const y = (Math.random() - 0.5) * 1; // Thin disk
+            const z = Math.sin(angle) * r;
+            
+            diskPos.push(x, y, z);
+            
+            // Color: Hot inner (white/blue), cooler outer (orange/red)
+            const ratio = (r - minR) / (maxR - minR);
+            const c = new THREE.Color();
+            if(ratio < 0.2) c.setHex(0xffffff); // Inner edge
+            else if(ratio < 0.5) c.setHex(0x00ffff);
+            else c.setHex(0xff4400); // Outer edge
+            
+            diskCol.push(c.r, c.g, c.b);
+        }
+        
+        diskGeometry.setAttribute('position', new THREE.Float32BufferAttribute(diskPos, 3));
+        diskGeometry.setAttribute('color', new THREE.Float32BufferAttribute(diskCol, 3));
+        
+        const diskMaterial = new THREE.PointsMaterial({
+            size: 0.8, vertexColors: true, blending: THREE.AdditiveBlending, transparent: true, opacity: 0.8
+        });
+        const accretionDisk = new THREE.Points(diskGeometry, diskMaterial);
+        blackHoleGroup.add(accretionDisk);
+
+        // 3. Earth
+        const earthGeo = new THREE.SphereGeometry(4, 32, 32);
+        const earthMat = new THREE.MeshPhongMaterial({ 
+            color: 0x2233ff, 
+            emissive: 0x112244,
+            shininess: 20
+        });
+        const earth = new THREE.Mesh(earthGeo, earthMat);
+        earth.position.set(60, 10, 0); // Distance from BH
+        blackHoleGroup.add(earth);
+
+        // Earth Atmosphere glow
+        const atmoGeo = new THREE.SphereGeometry(4.2, 32, 32);
+        const atmoMat = new THREE.MeshBasicMaterial({ color: 0x4488ff, transparent: true, opacity: 0.2, blending: THREE.AdditiveBlending });
+        const atmo = new THREE.Mesh(atmoGeo, atmoMat);
+        earth.add(atmo);
+        
+        // Add a light source for Earth representing the distant sun being distorted or the accretion disk light
+        const diskLight = new THREE.PointLight(0xffaa00, 2, 300);
+        diskLight.position.set(0, 0, 0);
+        blackHoleGroup.add(diskLight);
+
+
+        // --- INTERIOR SOLAR SYSTEM (INSIDE SINGULARITY) ---
+        
+        // 1. Central "White Hole" Sun
+        const innerSunGeo = new THREE.SphereGeometry(5, 32, 32);
+        const innerSunMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+        const innerSun = new THREE.Mesh(innerSunGeo, innerSunMat);
+        
+        // Sun Glow
+        const sunGlowGeo = new THREE.SphereGeometry(6, 32, 32);
+        const sunGlowMat = new THREE.MeshBasicMaterial({ color: 0xffffaa, transparent: true, opacity: 0.3, blending: THREE.AdditiveBlending });
+        const sunGlow = new THREE.Mesh(sunGlowGeo, sunGlowMat);
+        innerSun.add(sunGlow);
+        
+        interiorGroup.add(innerSun);
+        
+        // Sun Light
+        const innerLight = new THREE.PointLight(0xffffff, 2, 500);
+        interiorGroup.add(innerLight);
+
+        // 2. Abstract Geometric Planets
+        const planets = [];
+        const planetColors = [0xff0055, 0x00ffaa, 0x5500ff, 0xffff00];
+        
+        for(let i=0; i<4; i++) {
+            const size = 1 + Math.random() * 2;
+            const geo = new THREE.IcosahedronGeometry(size, 0); // Geometric look
+            const mat = new THREE.MeshPhongMaterial({ 
+                color: planetColors[i], 
+                emissive: planetColors[i], 
+                emissiveIntensity: 0.2,
+                wireframe: true 
+            });
+            const p = new THREE.Mesh(geo, mat);
+            
+            // Orbit data
+            const dist = 15 + (i * 12);
+            p.userData = {
+                distance: dist,
+                speed: 0.02 - (i * 0.003),
+                angle: Math.random() * Math.PI * 2
+            };
+            
+            interiorGroup.add(p);
+            planets.push(p);
+            
+            // Orbit trail
+            const trailGeo = new THREE.RingGeometry(dist-0.1, dist+0.1, 64);
+            const trailMat = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide, transparent: true, opacity: 0.1 });
+            const trail = new THREE.Mesh(trailGeo, trailMat);
+            trail.rotation.x = Math.PI / 2;
+            interiorGroup.add(trail);
+        }
+
+        // 3. Grid Floor for Reference
+        const gridHelper = new THREE.GridHelper(200, 50, 0x444444, 0x111111);
+        interiorGroup.add(gridHelper);
+
+
+        // --- ANIMATION LOOP ---
+        camera.position.z = 200;
+        camera.position.y = 50;
+        camera.lookAt(0,0,0);
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Update Time Scale from Slider
+            const sliderVal = document.getElementById('speed-slider').value;
+            timeScale = parseFloat(sliderVal);
+            cosmicAge += 0.01 * timeScale;
+
+            // Update Stats based on simulation state
+            if(timeScale > 0) {
+                stats.mass += 0.001 * timeScale;
+                stats.speed += 0.05 * timeScale;
+                stats.size += 0.01 * timeScale;
+                stats.value += 1.5 * timeScale;
+                
+                document.getElementById('stat-mass').innerText = stats.mass.toFixed(3) + ' T☉';
+                document.getElementById('stat-speed').innerText = stats.speed.toFixed(1) + ' km/s';
+                document.getElementById('stat-size').innerText = stats.size.toFixed(2) + ' kLY';
+                document.getElementById('stat-value').innerText = '$' + Math.floor(stats.value).toLocaleString() + ' T';
+            }
+
+            // --- ANIMATE GALAXIES ---
+            if (currentMode === 'galaxy') {
+                galaxies.forEach((g, idx) => {
+                    // Rotate
+                    g.rotation.y += g.userData.rotSpeed * timeScale * (1 + (stats.speed / 1000));
+                    
+                    // Expand (Growth)
+                    if (timeScale > 0) {
+                        const scale = 1 + (stats.size / 2000); // Slow growth
+                        g.scale.set(scale, scale, scale);
+                    }
+                });
+
+                // Camera Drift
+                camera.position.x = Math.sin(cosmicAge * 0.1) * 200;
+                camera.position.z = Math.cos(cosmicAge * 0.1) * 200;
+                camera.lookAt(0, 0, 0);
+            }
+
+            // --- ANIMATE BLACK HOLE ---
+            if (currentMode === 'blackhole') {
+                // Accretion Disk Rotation
+                accretionDisk.rotation.y -= 0.02 * timeScale;
+                
+                // Earth Orbiting weirdly due to gravity
+                const earthDist = 60 - Math.sin(cosmicAge * 0.5) * 10; // Wobbling distance
+                earth.position.x = Math.cos(cosmicAge * 0.2) * earthDist;
+                earth.position.z = Math.sin(cosmicAge * 0.2) * earthDist;
+                earth.rotation.y += 0.01;
+
+                // Accretion disk pulse
+                const pulse = 1 + Math.sin(cosmicAge * 5) * 0.05;
+                accretionDisk.scale.set(pulse, 1, pulse);
+
+                // Camera Logic
+                camera.position.x = Math.sin(cosmicAge * 0.1) * 80;
+                camera.position.z = Math.cos(cosmicAge * 0.1) * 80;
+                camera.position.y = 20 + Math.sin(cosmicAge * 0.2) * 10;
+                camera.lookAt(0,0,0);
+            }
+
+            // --- ANIMATE INTERIOR ---
+            if (currentMode === 'interior') {
+                // Rotate Sun
+                innerSun.rotation.y += 0.005 * timeScale;
+                innerSun.rotation.z += 0.002 * timeScale;
+
+                // Animate Planets
+                planets.forEach(p => {
+                    p.userData.angle += p.userData.speed * timeScale;
+                    p.position.x = Math.cos(p.userData.angle) * p.userData.distance;
+                    p.position.z = Math.sin(p.userData.angle) * p.userData.distance;
+                    p.rotation.x += 0.01;
+                    p.rotation.y += 0.02;
+                });
+                
+                // Camera Rotate
+                camera.position.x = Math.cos(cosmicAge * 0.05) * 60;
+                camera.position.z = Math.sin(cosmicAge * 0.05) * 60;
+                camera.position.y = 30;
+                camera.lookAt(0,0,0);
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        // --- UI LOGIC ---
+        function switchMode(mode) {
+            currentMode = mode;
+            
+            // Hide all groups
+            galaxyGroup.visible = false;
+            blackHoleGroup.visible = false;
+            interiorGroup.visible = false;
+
+            // Reset UI Buttons
+            document.querySelectorAll('.btn-nav').forEach(b => b.classList.remove('active'));
+            
+            // Log logic
+            const logContainer = document.getElementById('log-container');
+            const newLog = document.createElement('p');
+
+            if (mode === 'galaxy') {
+                galaxyGroup.visible = true;
+                document.getElementById('btn-galaxy').classList.add('active');
+                document.getElementById('target-name').innerText = "MILKY WAY CLUSTER";
+                camera.position.set(0, 50, 200);
+                newLog.innerHTML = `<span class="text-blue-400">[WARP]</span> Exiting gravity well. Returning to macro scale.`;
+            } else if (mode === 'blackhole') {
+                blackHoleGroup.visible = true;
+                document.getElementById('btn-blackhole').classList.add('active');
+                document.getElementById('target-name').innerText = "EVENT HORIZON (SAGITTARIUS A*)";
+                camera.position.set(0, 20, 80);
+                newLog.innerHTML = `<span class="text-red-400">[WARNING]</span> Approaching Schwarzschild radius. Gravity critical.`;
+            } else if (mode === 'interior') {
+                interiorGroup.visible = true;
+                document.getElementById('btn-interior').classList.add('active');
+                document.getElementById('target-name').innerText = "POCKET UNIVERSE ALPHA";
+                camera.position.set(0, 30, 60);
+                newLog.innerHTML = `<span class="text-purple-400">[CRITICAL]</span> Crossing event horizon. Physics models updated.`;
+            }
+
+            logContainer.appendChild(newLog);
+            logContainer.scrollTop = logContainer.scrollHeight;
+        }
+
+        function log(msg) {
+            const logContainer = document.getElementById('log-container');
+            const p = document.createElement('p');
+            p.innerHTML = `<span class="text-gray-500">[SYS]</span> ${msg}`;
+            logContainer.appendChild(p);
+        }
+
+        // Resize handler
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Start
+        animate();
+        log("Simulation started. Expansion initialized.");
+
+    </script>
 </body>
 </html>
